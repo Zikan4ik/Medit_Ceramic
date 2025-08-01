@@ -71,26 +71,35 @@ async def shutdown():
     await application.shutdown()
     print("Telegram Bot зупинено.")
 
-@app.post("/webhook/medit")
-async def medit_webhook(request: Request):
-    payload = await request.json()
-    print("Отримано:", payload)
+@router.post("/webhook/medit")
+async def handle_medit_webhook(event: dict):
+    print("Отримано:", event)
+    case_name = None
 
-    case = payload.get("case")
-    if case and "name" in case:
-        case_name = case.get("name", "Без назви")
-        patient_uuid = case.get("patient", {}).get("uuid", "Немає UUID")
-        occurred_at = payload.get("dateIssued")
+    if 'case' in event and isinstance(event['case'], dict) and 'name' in event['case']:
+        # Обробка формату, де 'case' знаходиться на верхньому рівні
+        case_name = event['case']['name']
+        print(f"Оброблено 'case' подію: {case_name}")
+        # Додайте вашу логіку для цього типу подій
+        # await bot.send_message(CHAT_ID, f"Отримано новий кейс: {case_name}")
 
-        # Зберігаємо в історію
-        history = load_history()
-        history.insert(0, {
-            "caseName": case_name,
-            "patientName": patient_uuid,
-            "occurredAt": occurred_at
-        })
-        history = history[:MAX_HISTORY_SIZE]
-        save_history(history)
+    elif 'order' in event and isinstance(event['order'], dict) and \
+         'case' in event['order'] and isinstance(event['order']['case'], dict) and \
+         'name' in event['order']['case']:
+        # Обробка формату, де 'case' знаходиться всередині 'order'
+        case_name = event['order']['case']['name']
+        order_number = event['order'].get('orderNumber', 'N/A') # Отримати номер замовлення, якщо є
+        seller_name = event['order']['seller'].get('name', 'N/A') # Отримати ім'я продавця
+        print(f"Оброблено 'order' подію. Ім'я кейсу: {case_name}, Номер замовлення: {order_number}, Продавець: {seller_name}")
+        # Додайте вашу логіку для цього типу подій
+        # await bot.send_message(CHAT_ID, f"Нове замовлення №{order_number} від {seller_name}: Кейс '{case_name}'")
+
+    else:
+        print("Подія не має очікуваної структури ('case' або 'order' з 'case' та 'name').")
+        # Можливо, логувати повний вміст, щоб аналізувати нові формати
+        # print("Нерозпізнана подія:", event)
+
+    return {"status": "success"} # Важливо завжди повертати відповідь, щоб джерело вебхука знало, що запит оброблено.
 
         # Надсилаємо в Telegram
         message = (
